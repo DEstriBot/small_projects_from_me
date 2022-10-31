@@ -1,0 +1,129 @@
+class economist_parser:
+    
+    def __init__(self, root, section, init_page, end_page, **kwargs):
+        self.root = root
+        self.section = section
+        self.init_page = init_page
+        self.end_page = end_page
+        kwargs['root'] = self.root
+        kwargs['section'] = self.section
+
+    def status_checker (self):
+        """
+        Checking the status of access 
+        """
+        url = f'{self.root}/{self.section}'
+        web_page = requests.get(url)
+        status = web_page.status_code
+        if status == 200:
+            print(f'Your status code is: {status}. That means access granted, now can get to parsing')
+        else:
+            print('Sorry, there\'s some problems with access, try to parse the other way')
+            
+    def kw_definer(self):
+        """
+        Forms a list of keywords to check from articles
+        Returns a list of keywords to iterate from
+        """
+        self.keywords = input('Please enter the keywords, dividing them by a single comma: \n')
+        self.list_of_kws = []
+        for i in self.keywords.split(','):
+            self.list_of_kws.append(i.strip().lower())
+        return self.list_of_kws
+    
+    def page_selector (self):
+        """
+        Selecting a page to parse on and accessing it;
+        Selecting a body of the page with content and returning it
+        """
+        page_link = f'{self.root}/{self.section}?page={self.n_page}'
+        soup = bs(requests.get(page_link).text, 'lxml')
+        self.content_body = soup.find('main', role='main')
+        return self.content_body
+    
+                
+    def article_downloader(self, download, head):
+        """
+        On a selected page, chooses adequate articles, accesses them and downloads the contents
+        
+        """
+        if download == None or download == False: # checking if the download is needed
+            pass
+        elif download == True:
+#             getting a link and accessing the page
+            topic_link = f'{self.root}{self.ref}'
+            soup = bs(requests.get(topic_link).text, 'lxml')
+            main_text = soup.find_all('p', class_='article__body-text')
+#             sacking the text of the article
+            transcript = ''
+            for n in range(len(main_text)):
+                transcript += f'\t{main_text[n].get_text()} \n\n'
+#             deleting chars that won't fit the name
+            badchars = ['/', '?', '\\', '*']
+            for c in badchars:
+                head = head.replace(c, '')
+#             loading files
+            with open(f'{head}.docx', 'w', encoding='utf-8') as file:
+                file.write(transcript)
+
+    def shower(self, show, counter, descr):
+        """
+        Returns a name, description and a link of the adequate articles
+        """
+        if show == None or show == False:
+            pass
+        elif show == True:
+            print(counter, ') \t', head, '\n', descr, '\n', f'{self.root}{self.ref}', '\n')
+    
+    def parser_engine(self, show, download):
+        """
+        Parsing mechanism; 3 main stages
+        1) Selecting a frame of the article and iterating through the frames; defining tags of different contents
+        2) Iterating through the list of kwords, checking and matching
+        3) Additional stuff - totaling, printing and returning results
+        """
+        counter = 0
+        controller = []
+        new_frame = self.content_body.find_all('div', class_='css-e6sfh4 e1mrg8dy0')
+        for i in range(len(new_frame)):
+#         check if the description is not empty. Is it's not - parses, otherwise - skips the frame
+            if new_frame[i].find('p', class_='css-1tj7b79 e1dj3j7p0'):
+#         creating tags of parts of frames
+                head = self.content_body.find_all('h3')[i].get_text()
+                descr = self.content_body.find_all('p', class_='css-1tj7b79 e1dj3j7p0')[i].get_text()
+                self.ref = self.content_body.find_all('a')[i]['href']
+                for n in self.list_of_kws: # iterating through the kwords
+                    if head not in controller: # check if the article has already been counted
+                        if n in head.lower() or n in descr.lower(): # matching keywords and heads or descriptions of the article
+                            counter += 1
+                            controller.append(head)
+#                             optional functions
+                            self.shower(show, counter, descr)
+                            self.article_downloader(download, head)
+                        
+            else:
+                break   
+                    
+        self.total_counter += counter
+        
+        if counter == 1:
+            print(f'On the page {self.n_page} there\'s {counter} article related to the topic\n')
+        else:
+            print(f'On the page {self.n_page} there\'s {counter} articles related to the topic \n')
+            
+    def related_articles_parser(self, show=None, total=None, download=None):
+        """
+        Launches parsing mechanisms iterating through the chosen range of the pages
+        Launches additional methods - 'total' and 'show'
+        """
+        self.kw_definer()
+        self.download = download
+        self.total_counter = 0
+        for self.n_page in range(self.init_page, self.end_page+1):
+            self.page_selector()
+            self.parser_engine(show, download)
+            
+        if total == None or total == False:
+            pass
+        elif total == True:
+            print(f'In total there\'s {self.total_counter} related articles in {self.end_page} pages of the Economist {self.section} section')
